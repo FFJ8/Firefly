@@ -8,6 +8,7 @@ import { type BlogEnv, handleBlog, type Statement } from "../src/server/blog-wor
 test("online articles enforce owner authentication and preserve edits", async () => {
 	const database = new DatabaseSync(":memory:");
 	database.exec(readFileSync(new URL("../migrations/0001_online_posts.sql", import.meta.url), "utf8"));
+	database.exec(readFileSync(new URL("../migrations/0002_profile_avatar.sql", import.meta.url), "utf8"));
 	const password = "local-test-password-only";
 	const salt = "test-salt";
 	class Query implements Statement {
@@ -38,6 +39,14 @@ test("online articles enforce owner authentication and preserve edits", async ()
 		assert.equal(loggedIn.status,200); cookie=loggedIn.headers.get("Set-Cookie")!.split(";")[0];
 		assert.match(loggedIn.headers.get("Set-Cookie")!,/HttpOnly; Secure; SameSite=Strict/);
 		assert.deepEqual(await (await request("session")).json(),{admin:true});
+		const avatar = "data:image/jpeg;base64," + Buffer.from([255,216,255,224,255,217]).toString("base64");
+		assert.equal((await request("avatar", "PUT", {avatar}, false)).status, 401);
+		assert.equal((await request("avatar", "PUT", {avatar}, true, "https://evil.example")).status, 403);
+		assert.equal((await request("avatar", "PUT", {avatar: "data:image/svg+xml;base64,PHN2Zz4="})).status, 400);
+		assert.equal((await request("avatar", "PUT", {avatar: "data:image/jpeg;base64,aGVsbG8="})).status, 400);
+		assert.equal((await request("avatar", "PUT", {avatar: "x".repeat(400001)})).status, 413);
+		assert.equal((await request("avatar", "PUT", {avatar})).status, 200);
+		assert.deepEqual(await (await request("avatar", "GET", undefined, false)).json(), {avatar});
 		const created = await request("posts","PUT",article); assert.equal(created.status,200);
 		const post = await created.json() as {revision:number;updatedAt:string;html:string};
 		assert.equal(post.revision,1); assert.ok(!Number.isNaN(Date.parse(post.updatedAt)));

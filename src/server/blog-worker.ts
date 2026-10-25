@@ -110,6 +110,21 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 			return json({ error: "请求来源无效" }, 403);
 		}
 		if (path === "/api/blog/session" && request.method === "GET") return json({ admin: await isAdmin(request, env) });
+		if (path === "/api/blog/avatar" && request.method === "GET") {
+			const profile = await env.BLOG_DB.prepare("SELECT avatar FROM profile_settings WHERE id = 1").first<{ avatar: string }>();
+			return json({ avatar: profile?.avatar || null });
+		}
+		if (path === "/api/blog/avatar" && request.method === "PUT") {
+			if (!(await isAdmin(request, env))) return json({ error: "请先登录站长账号" }, 401);
+			const payload = await readJson(request, 400000) as { avatar?: unknown };
+			const avatar = payload?.avatar;
+			if (typeof avatar !== "string" || (avatar.length - 23) % 4 !== 0 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(avatar)) return json({ error: "请选择有效的头像图片" }, 400);
+			const binary = atob(avatar.slice(23));
+			if (binary.length < 4 || !binary.startsWith("\xff\xd8\xff") || !binary.endsWith("\xff\xd9")) return json({ error: "图片格式无效" }, 400);
+			await env.BLOG_DB.prepare("INSERT INTO profile_settings (id, avatar, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET avatar = excluded.avatar, updated_at = excluded.updated_at")
+				.bind(avatar, new Date().toISOString()).run();
+			return json({ avatar });
+		}
 		if (path === "/api/blog/login" && request.method === "POST") return await login(request, env);
 		if (path === "/api/blog/logout" && request.method === "POST") {
 			const token = tokenFrom(request);
@@ -147,7 +162,7 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 		return json({ error: "接口不存在或请求方式不支持" }, 404);
 	} catch (error) {
 		if (error instanceof SyntaxError || (error instanceof Error && error.message === "JSON_REQUIRED")) return json({ error: "请求内容格式错误" }, 400);
-		if (error instanceof Error && error.message === "TOO_LARGE") return json({ error: "文章内容过大" }, 413);
+		if (error instanceof Error && error.message === "TOO_LARGE") return json({ error: "上传内容过大" }, 413);
 		console.error("Blog request failed", error instanceof Error ? error.name : "unknown");
 		return json({ error: "暂时无法保存，请稍后重试。编辑内容已保留。" }, 503);
 	}

@@ -42,6 +42,9 @@
 		}
 		return data;
 	}
+	$effect(() => {
+		window.dispatchEvent(new CustomEvent("blog-auth-change", { detail: { admin } }));
+	});
 	function message(cause: unknown): string {
 		return cause instanceof Error && cause.name !== "TimeoutError" && cause.name !== "TypeError"
 			? cause.message : "网络暂时不可用，请重试。编辑内容仍保留在窗口中。";
