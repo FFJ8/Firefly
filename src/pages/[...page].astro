@@ -1,6 +1,6 @@
 ---
 import type { GetStaticPaths } from "astro";
-import LocalPostWorkspace from "@/components/features/LocalPostWorkspace.svelte";
+import OnlinePostWorkspace from "@/components/features/OnlinePostWorkspace.svelte";
 import { siteConfig } from "@/config";
 import MainGridLayout from "@/layouts/MainGridLayout.astro";
 import "@/styles/banner-home.css";
@@ -11,5 +11,5 @@ export const getStaticPaths = (() => [
 ---
 
 <MainGridLayout heading={siteConfig.title}>
-  <LocalPostWorkspace client:load />
+  <OnlinePostWorkspace client:load />
 </MainGridLayout>

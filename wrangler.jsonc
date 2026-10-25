@@ -1,8 +1,19 @@
 {
 	"name": "firefly",
+	"account_id": "fc0d8b9b0e3f78b535f925d98c19ee35",
+	"routes": [{ "pattern": "wxyjj.top", "custom_domain": true }],
+	"main": "src/server/blog-worker.ts",
 	"compatibility_date": "2025-01-01",
 	"compatibility_flags": ["nodejs_compat"],
 	"assets": {
-		"directory": "./dist"
-	}
+		"directory": "./dist",
+		"binding": "ASSETS",
+		"run_worker_first": ["/api/blog/*"]
+	},
+	"d1_databases": [{
+		"binding": "BLOG_DB",
+		"database_name": "firefly-articles",
+		"database_id": "d8a81570-2386-4fb2-8b9e-9aa412f19229",
+		"migrations_dir": "migrations"
+	}]
 }
