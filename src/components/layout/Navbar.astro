@@ -159,7 +159,10 @@ const logoVariants = await Promise.all(
         className,
         "overflow-visible! h-18 px-4"
     ]}>
-        <div class="mx-auto h-full w-full max-w-(--page-width) grid grid-cols-[auto_minmax(0,1fr)_auto] items-center">
+        <div class:list={[
+            "navbar-inner mx-auto h-full w-full max-w-(--page-width) grid grid-cols-[auto_minmax(0,1fr)_auto] items-center",
+            { "navbar-menu-centered": isNavbarMenuCentered },
+        ]}>
             <a href={url('/')} class="btn-plain scale-animation rounded-lg h-13 px-3 md:px-5 font-bold active:scale-95">
                 <div class:list={[
                     "flex flex-row items-center text-md",
@@ -190,7 +193,7 @@ const logoVariants = await Promise.all(
                 </div>
             </a>
             <div class:list={[
-                "hidden lg:flex items-center space-x-1 col-start-2",
+                "navbar-menu hidden lg:flex items-center space-x-1 col-start-2 whitespace-nowrap",
                 isNavbarMenuCentered
                     ? "justify-center"
                     : "justify-start pl-2"

@@ -318,6 +318,13 @@ body.wallpaper-transparent #navbar-wrapper #navbar[data-full-width="true"] > div
     }
 }
 
+/* 五项菜单在空间充足时居中，两侧保留标题和工具的实际宽度。 */
+@media (min-width: 1024px) {
+    #navbar .navbar-menu-centered {
+        grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+    }
+}
+
 /* semi 滚动后加回投影 */
 html[data-has-wallpaper] #navbar[data-transparent-mode="semi"].navbar-sticky-shadow>div {
     box-shadow: inset 0 1px 0 var(--navbar-glass-highlight), 0 1px 0 var(--navbar-glass-hairline) !important;

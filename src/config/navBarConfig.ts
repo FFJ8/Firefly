@@ -82,9 +82,9 @@ const getDynamicNavBarConfig = (): NavBarConfig => {
 		],
 	});
 
-	// 关于及其子菜单
+	// 关于原作者及其相关链接
 	links.push({
-		name: "关于",
+		name: "关于原作者",
 		url: "#",
 		icon: "material-symbols:info",
 		children: [
@@ -93,16 +93,8 @@ const getDynamicNavBarConfig = (): NavBarConfig => {
 
 			// 关于页面
 			LinkPresets.About,
-		],
-	});
 
-	// 自定义导航栏链接
-	links.push({
-		name: "链接",
-		url: "#",
-		icon: "material-symbols:link",
-		// 子菜单
-		children: [
+			// 原作者的项目链接和文档
 			{
 				name: "GitHub",
 				url: "https://github.com/CuteLeaf/Firefly",
