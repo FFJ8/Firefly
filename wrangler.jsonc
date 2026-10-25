@@ -1,7 +1,10 @@
 {
 	"name": "firefly",
 	"account_id": "fc0d8b9b0e3f78b535f925d98c19ee35",
-	"routes": [{ "pattern": "wxyjj.top", "custom_domain": true }],
+	"routes": [
+		{ "pattern": "wxyjj.top", "custom_domain": true },
+		{ "pattern": "www.wxyjj.top", "custom_domain": true }
+	],
 	"main": "src/server/blog-worker.ts",
 	"compatibility_date": "2025-01-01",
 	"compatibility_flags": ["nodejs_compat"],
