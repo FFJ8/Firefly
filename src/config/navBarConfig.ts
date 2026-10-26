@@ -56,6 +56,7 @@ const getDynamicNavBarConfig = (): NavBarConfig => {
 		url: "#",
 		icon: "material-symbols:person",
 		children: [
+			{ name: "文章", url: "/articles/", icon: "material-symbols:article" },
 			// 动态
 			LinkPresets.Dynamic,
 
