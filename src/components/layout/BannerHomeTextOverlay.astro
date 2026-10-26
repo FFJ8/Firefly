@@ -2,7 +2,6 @@
 import { Icon } from "astro-icon/components";
 import TypewriterText from "@/components/features/TypewriterText.astro";
 import { backgroundWallpaper } from "@/config";
-import { encodeMailto, MAILTO_ONCLICK_SCRIPT } from "@/utils/email-utils";
 
 interface Props {
 	showHomeText: boolean;
@@ -41,23 +40,17 @@ const homeTextLinksEnable = homeText?.linksEnable !== false;
                 {homeTextLinksEnable && homeTextLinks && homeTextLinks.length > 0 && (
                     <div class="banner-links mt-5 flex items-center justify-center gap-3 pointer-events-auto">
                         {homeTextLinks.map((link) => {
-                            // mailto 链接做 base64 加密防爬虫（点击时才解码导航，与 Profile 一致）
                             const isMailto = link.url.startsWith("mailto:");
-                            const encodedEmail = isMailto
-                                ? encodeMailto(link.url)
-                                : undefined;
                             const isExternal = link.url.startsWith("http");
                             return (
                                 <a
-                                    href={isMailto ? "#" : link.url}
+                                    href={link.url}
                                     aria-label={link.name}
                                     title={link.name}
-                                    data-encoded-email={encodedEmail}
                                     target={!isMailto && isExternal ? "_blank" : undefined}
                                     rel={!isMailto && isExternal ? "noopener" : undefined}
                                     class={link.showName ? "banner-link banner-link-text" : "banner-link"}
                                     style="color: #fff"
-                                    onclick={isMailto ? MAILTO_ONCLICK_SCRIPT : undefined}
                                 >
                                     {/* 内联 fill: currentColor，避免 CSS 加载前 SVG 默认黑色图标闪现 */}
                                     <Icon name={link.icon} class="text-[1.25rem]" style="fill: currentColor" />
