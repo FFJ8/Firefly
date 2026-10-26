@@ -9,6 +9,7 @@ test("online articles enforce owner authentication and preserve edits", async ()
 	const database = new DatabaseSync(":memory:");
 	database.exec(readFileSync(new URL("../migrations/0001_online_posts.sql", import.meta.url), "utf8"));
 	database.exec(readFileSync(new URL("../migrations/0002_profile_avatar.sql", import.meta.url), "utf8"));
+	database.exec(readFileSync(new URL("../migrations/0003_article_organization.sql", import.meta.url), "utf8"));
 	const password = "local-test-password-only";
 	const salt = "test-salt";
 	class Query implements Statement {
@@ -62,6 +63,36 @@ test("online articles enforce owner authentication and preserve edits", async ()
 		assert.equal((await request("posts","PUT",{...article,revision:1,body:"旧窗口内容"})).status,409);
 		assert.equal((await request("posts","PUT",{...article,title:""})).status,400);
 		assert.equal((await request("posts","PUT",{...article,body:"x".repeat(200001)})).status,400);
+		const organized = {...article, revision: 2, body: "新正文", category: " 日常 ", tags: ["生活", "生活", " C++ & 笔记 "], series: "记录", seriesOrder: 2};
+		assert.equal((await request("posts", "PUT", organized, false)).status, 401);
+		const categorized = await (await request("posts", "PUT", organized)).json() as {revision: number; tags: string[]; category: string; updatedAt: string; createdAt: string};
+		assert.equal(categorized.revision, 3); assert.equal(categorized.category, "日常"); assert.deepEqual(categorized.tags, ["生活", "C++ & 笔记"]);
+		const same = await (await request("posts", "PUT", organized)).json() as {updatedAt: string};
+		assert.equal(same.updatedAt, categorized.updatedAt);
+		assert.equal((await request("posts", "PUT", {...organized, revision: 2, category: "旧分类"})).status, 409);
+		assert.equal((await request("posts", "PUT", {...organized, revision: 3, tags: [5]})).status, 400);
+		assert.equal((await request("posts", "PUT", {...organized, revision: 3, seriesOrder: -1})).status, 400);
+		assert.equal((await request("posts", "PUT", {...organized, revision: 3, category: "x".repeat(61)})).status, 400);
+		assert.equal((await request("posts", "PUT", {...organized, revision: 3, tags: Array(21).fill("tag")})).status, 400);
+		for (const mode of ["categories", "tags", "series"]) {
+			const data = await (await request(`catalog?mode=${mode}`, "GET", undefined, false)).json() as {groups: {name: string; count: number}[]};
+			assert.ok(data.groups.length > 0); assert.equal(data.groups[0].count, 1);
+		}
+		const tagged = await (await request(`posts?tag=${encodeURIComponent("C++ & 笔记")}`, "GET", undefined, false)).json() as {posts: {id: string}[]};
+		assert.equal(tagged.posts[0].id, id);
+		const missing = await (await request("posts?category=missing")).json() as {posts: unknown[]}; assert.equal(missing.posts.length, 0);
+		const oldClient = await (await request("posts", "PUT", {...article, revision: 3, body: "旧客户端仍保留元数据"})).json() as {category: string; series: string; tags: string[]; createdAt: string};
+		assert.equal(oldClient.category, "日常"); assert.equal(oldClient.series, "记录"); assert.deepEqual(oldClient.tags, categorized.tags); assert.equal(oldClient.createdAt, categorized.createdAt);
+		const cleared = await request("posts", "PUT", {...article, revision: 4, category: "", tags: [], series: "", seriesOrder: 0}); assert.equal(cleared.status, 200);
+		assert.deepEqual(await (await request("catalog?mode=tags")).json(), {groups: []});
+		assert.deepEqual(await (await request("catalog?mode=series")).json(), {groups: []});
+		assert.deepEqual(await (await request("catalog?mode=categories")).json(), {groups: [{name: "", count: 1}]});
+		for (let i = 0; i < 23; i++) database.prepare("INSERT INTO online_posts (id,title,body,created_at,updated_at,revision,category,tags,series,series_order) VALUES (?,?,?,'2025-01-01T00:00:00Z','2026-01-01T00:00:00Z',1,'分页','[]','测试系列',?)").run(crypto.randomUUID(), `文章 ${i}`, "正文", 23-i);
+		const firstPage = await (await request("posts?series="+encodeURIComponent("测试系列"))).json() as {posts: {seriesOrder: number}[]; more: boolean};
+		assert.equal(firstPage.posts.length, 20); assert.equal(firstPage.more, true); assert.equal(firstPage.posts[0].seriesOrder, 1);
+		const secondPage = await (await request("posts?series="+encodeURIComponent("测试系列")+"&offset=20")).json() as {posts: {seriesOrder: number}[]; more: boolean};
+		assert.equal(secondPage.posts.length, 3); assert.equal(secondPage.more, false); assert.equal(secondPage.posts[0].seriesOrder, 21);
+		const archive = await (await request("posts?sort=archive")).json() as {posts: {id: string}[]}; assert.equal(archive.posts[0].id, id);
 		await request("logout","POST"); assert.deepEqual(await (await request("session")).json(),{admin:false});
 		assert.equal((await request("posts","PUT",article)).status,401);
 		for (let i=0;i<9;i++) await request("login","POST",{password:"wrong"});

@@ -1,10 +1,8 @@
 ---
-import ArchivePanel from "@components/controls/ArchivePanel.astro";
-import I18nKey from "@i18n/i18nKey";
-import { i18n } from "@i18n/translation";
-import MainGridLayout from "@layouts/MainGridLayout.astro";
+import MainGridLayout from "@/layouts/MainGridLayout.astro";
+import OnlinePostDirectory from "@/components/features/OnlinePostDirectory.svelte";
 ---
 
-<MainGridLayout title={i18n(I18nKey.archive)}>
-  <ArchivePanel />
+<MainGridLayout title="归档">
+  <OnlinePostDirectory mode="archive" client:load />
 </MainGridLayout>

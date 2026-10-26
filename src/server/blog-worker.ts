@@ -16,7 +16,7 @@ export interface BlogEnv {
 }
 const cookieName = "__Host-firefly_admin";
 const encoder = new TextEncoder();
-const fields = "id, title, body, created_at AS createdAt, updated_at AS updatedAt, revision";
+const fields = "id, title, body, created_at AS createdAt, updated_at AS updatedAt, revision, category, tags, series, series_order AS seriesOrder";
 const sessionDuration = 7 * 24 * 60 * 60;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -68,8 +68,12 @@ async function readJson(request: Request, limit: number): Promise<unknown> {
 	for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
 	return JSON.parse(new TextDecoder().decode(bytes));
 }
-async function rendered(post: OnlinePost): Promise<OnlinePost> {
-	return { ...post, html: sanitizeHtml(await marked.parse(post.body), {
+type StoredPost = Omit<OnlinePost, "tags"> & { tags: string };
+function decodePost(post: StoredPost): OnlinePost {
+	return { ...post, tags: JSON.parse(post.tags) as string[] };
+}
+async function rendered(post: StoredPost): Promise<OnlinePost> {
+	return { ...decodePost(post), html: sanitizeHtml(await marked.parse(post.body), {
 		allowedTags: [...sanitizeHtml.defaults.allowedTags, "img", "h1", "h2", "del"],
 		allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, img: ["src", "alt", "title"], code: ["class"] },
 		allowedSchemes: ["https", "http", "mailto"],
@@ -131,15 +135,31 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 			if (token) await env.BLOG_DB.prepare("DELETE FROM admin_sessions WHERE token_hash = ?").bind(await digest(token)).run();
 			return json({ admin: false }, 200, { "Set-Cookie": sessionCookie("", 0) });
 		}
+		if (path === "/api/blog/catalog" && request.method === "GET") {
+			const mode = url.searchParams.get("mode");
+			const query = mode === "categories" ? "SELECT category AS name, COUNT(*) AS count FROM online_posts GROUP BY category ORDER BY count DESC, name"
+				: mode === "tags" ? "SELECT value AS name, COUNT(*) AS count FROM online_posts, json_each(online_posts.tags) GROUP BY value ORDER BY count DESC, name"
+				: mode === "series" ? "SELECT series AS name, COUNT(*) AS count FROM online_posts WHERE series != '' GROUP BY series ORDER BY name" : null;
+			if (!query) return json({ error: "目录类型无效" }, 400);
+			return json({ groups: (await env.BLOG_DB.prepare(query).all<{ name: string; count: number }>()).results });
+		}
 		if (path === "/api/blog/posts" && request.method === "GET") {
 			const offset = Math.max(0, Math.min(100000, Number(url.searchParams.get("offset")) || 0));
-			const result = await env.BLOG_DB.prepare("SELECT id, title, substr(body, 1, 240) AS body, created_at AS createdAt, updated_at AS updatedAt, revision FROM online_posts ORDER BY updated_at DESC, id DESC LIMIT 21 OFFSET ?")
-				.bind(Math.floor(offset)).all<OnlinePost>();
-			return json({ posts: result.results.slice(0, 20), more: result.results.length > 20 });
+			const conditions: string[] = [];
+			const values: unknown[] = [];
+			for (const field of ["category", "series"] as const) {
+				if (url.searchParams.has(field)) { conditions.push(`${field} = ?`); values.push(url.searchParams.get(field)); }
+			}
+			if (url.searchParams.has("tag")) { conditions.push("EXISTS (SELECT 1 FROM json_each(online_posts.tags) WHERE value = ?)"); values.push(url.searchParams.get("tag")); }
+			const order = url.searchParams.has("series") ? "series_order ASC, created_at ASC, id ASC"
+				: url.searchParams.get("sort") === "archive" ? "created_at DESC, id DESC" : "updated_at DESC, id DESC";
+			const result = await env.BLOG_DB.prepare(`SELECT ${fields.replace("title, body,", "title, substr(body, 1, 240) AS body,")} FROM online_posts ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""} ORDER BY ${order} LIMIT 21 OFFSET ?`)
+				.bind(...values, Math.floor(offset)).all<StoredPost>();
+			return json({ posts: result.results.slice(0, 20).map(decodePost), more: result.results.length > 20 });
 		}
 		const id = path.slice("/api/blog/posts/".length);
 		if (path.startsWith("/api/blog/posts/") && uuidPattern.test(id) && request.method === "GET") {
-			const post = await env.BLOG_DB.prepare(`SELECT ${fields} FROM online_posts WHERE id = ?`).bind(id).first<OnlinePost>();
+			const post = await env.BLOG_DB.prepare(`SELECT ${fields} FROM online_posts WHERE id = ?`).bind(id).first<StoredPost>();
 			return post ? json(await rendered(post)) : json({ error: "文章不存在" }, 404);
 		}
 		if (path === "/api/blog/posts" && request.method === "PUT") {
@@ -148,15 +168,21 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 			if (!payload || typeof payload.id !== "string" || !uuidPattern.test(payload.id) || typeof payload.title !== "string" || !payload.title.trim() || payload.title.length > 160 || typeof payload.body !== "string" || payload.body.length > 200000 || !Number.isSafeInteger(payload.revision) || payload.revision < 0) {
 				return json({ error: "请填写标题（最多 160 字），正文最多 20 万字" }, 400);
 			}
-			const previous = await env.BLOG_DB.prepare(`SELECT ${fields} FROM online_posts WHERE id = ?`).bind(payload.id).first<OnlinePost>();
+			const previous = await env.BLOG_DB.prepare(`SELECT ${fields} FROM online_posts WHERE id = ?`).bind(payload.id).first<StoredPost>();
+			const category = payload.category ?? previous?.category ?? "";
+			const series = payload.series ?? previous?.series ?? "";
+			const seriesOrder = payload.seriesOrder ?? previous?.seriesOrder ?? 0;
+			const inputTags = payload.tags ?? (previous ? JSON.parse(previous.tags) : []);
+			if (typeof category !== "string" || category.length > 60 || typeof series !== "string" || series.length > 60 || !Number.isSafeInteger(seriesOrder) || seriesOrder < 0 || seriesOrder > 100000 || !Array.isArray(inputTags) || inputTags.length > 20 || inputTags.some((tag: unknown) => typeof tag !== "string" || tag.length > 40)) return json({ error: "分类和系列最多 60 字；标签最多 20 个，每个最多 40 字；系列顺序须为 0 到 100000 的整数" }, 400);
+			const tags = JSON.stringify([...new Set(inputTags.map((tag: string) => tag.trim()).filter(Boolean))]);
 			// An unchanged editor must not alter the last edited timestamp.
-			if (previous && previous.revision >= payload.revision && previous.title === payload.title.trim() && previous.body === payload.body) return json(await rendered(previous));
+			if (previous && previous.revision >= payload.revision && previous.title === payload.title.trim() && previous.body === payload.body && previous.category === category.trim() && previous.series === series.trim() && previous.seriesOrder === seriesOrder && previous.tags === tags) return json(await rendered(previous));
 			const now = new Date().toISOString();
 			const result = payload.revision === 0
-				? await env.BLOG_DB.prepare("INSERT OR IGNORE INTO online_posts (id, title, body, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, 1)").bind(payload.id, payload.title.trim(), payload.body, now, now).run()
-				: await env.BLOG_DB.prepare("UPDATE online_posts SET title = ?, body = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ?").bind(payload.title.trim(), payload.body, now, payload.id, payload.revision).run();
+				? await env.BLOG_DB.prepare("INSERT OR IGNORE INTO online_posts (id, title, body, created_at, updated_at, revision, category, tags, series, series_order) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)").bind(payload.id, payload.title.trim(), payload.body, now, now, category.trim(), tags, series.trim(), seriesOrder).run()
+				: await env.BLOG_DB.prepare("UPDATE online_posts SET title = ?, body = ?, updated_at = ?, revision = revision + 1, category = ?, tags = ?, series = ?, series_order = ? WHERE id = ? AND revision = ?").bind(payload.title.trim(), payload.body, now, category.trim(), tags, series.trim(), seriesOrder, payload.id, payload.revision).run();
 			if (!result.meta.changes) return json({ error: "文章已在其他窗口更新。你的内容已保留，请下载备份后重新打开最新文章。" }, 409);
-			const post = await env.BLOG_DB.prepare(`SELECT ${fields} FROM online_posts WHERE id = ?`).bind(payload.id).first<OnlinePost>();
+			const post = await env.BLOG_DB.prepare(`SELECT ${fields} FROM online_posts WHERE id = ?`).bind(payload.id).first<StoredPost>();
 			return json(await rendered(post!));
 		}
 		return json({ error: "接口不存在或请求方式不支持" }, 404);

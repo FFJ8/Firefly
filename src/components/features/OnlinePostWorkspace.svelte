@@ -21,6 +21,7 @@
 	let reading = $state<OnlinePost | null>(null);
 	let dirty = $state(false);
 	let original = "";
+	let tagsText = $state("");
 	let legacyId: string | null = null;
 	let editor: HTMLDialogElement;
 	let reader: HTMLDialogElement;
@@ -103,7 +104,8 @@
 	}
 	async function edit(post?: SaveOnlinePost, fromLegacy: string | null = null) {
 		if (!admin) return;
-		active = post ? { id: post.id, title: post.title, body: post.body, revision: post.revision } : { id: crypto.randomUUID(), title: "", body: "", revision: 0 };
+		active = post ? { id: post.id, title: post.title, body: post.body, revision: post.revision, category: post.category || "", tags: post.tags || [], series: post.series || "", seriesOrder: post.seriesOrder || 0 } : { id: crypto.randomUUID(), title: "", body: "", revision: 0, category: "", tags: [], series: "", seriesOrder: 0 };
+		tagsText = (active.tags || []).join("，");
 		legacyId = fromLegacy;
 		original = JSON.stringify(active);
 		dirty = !!fromLegacy || !!backups.find((item) => item.id === active?.id);
@@ -124,6 +126,13 @@
 			status = "内容没有修改";
 		}
 	}
+	function organize(field: "category" | "tags" | "series" | "seriesOrder", value: string) {
+		if (!active) return;
+		if (field === "tags") { tagsText = value; active.tags = [...new Set(value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean))]; }
+		else if (field === "seriesOrder") active.seriesOrder = Number(value);
+		else active[field] = value;
+		update("body", active.body);
+	}
 	async function publishAndClose() {
 		if (!active || busy) return;
 		if ((!dirty && active.revision > 0) || (!active.title.trim() && !active.body.trim() && active.revision === 0)) {
@@ -137,6 +146,7 @@
 		backup(); busy = true; editorError = "";
 		try {
 			const published = await api<OnlinePost>("posts", { method: "PUT", body: JSON.stringify(active) });
+			window.dispatchEvent(new Event("blog-posts-change"));
 			try {
 				const remaining = readBackups().filter((item) => item.id !== published.id);
 				localStorage.setItem(backupKey, JSON.stringify(remaining)); backups = remaining;
@@ -243,6 +253,12 @@
 		<p class="hint">完成并退出时自动发布。直接关闭浏览器时，未发布内容会保留为本机备份。</p>
 		<label for="online-title">文章标题</label>
 		<input bind:this={titleInput} id="online-title" maxlength="160" value={active.title} disabled={busy} oninput={(event) => update("title", event.currentTarget.value)} />
+		<div class="organization-fields">
+			<div><label for="online-category">分类</label><input id="online-category" maxlength="60" placeholder="留空为未分类" value={active.category || ""} disabled={busy} oninput={(event) => organize("category", event.currentTarget.value)} /></div>
+			<div><label for="online-tags">标签</label><input id="online-tags" placeholder="用逗号分隔，最多 20 个" value={tagsText} disabled={busy} oninput={(event) => organize("tags", event.currentTarget.value)} /></div>
+			<div><label for="online-series">系列</label><input id="online-series" maxlength="60" placeholder="可选，同名文章组成一个系列" value={active.series || ""} disabled={busy} oninput={(event) => organize("series", event.currentTarget.value)} /></div>
+			<div><label for="online-series-order">系列顺序</label><input id="online-series-order" type="number" min="0" max="100000" step="1" value={active.seriesOrder || 0} disabled={busy} oninput={(event) => organize("seriesOrder", event.currentTarget.value)} /></div>
+		</div>
 		<label for="online-body">正文</label>
 		<textarea id="online-body" maxlength="200000" placeholder="从这里开始记录……支持 Markdown" value={active.body} disabled={busy} oninput={(event) => update("body", event.currentTarget.value)}></textarea>
 		{#if editorError}<p class="error" role="alert">{editorError}</p>{/if}
@@ -256,11 +272,19 @@
 		<header><span>文章</span><div class="actions">{#if admin}<button class="secondary" onclick={() => edit(reading!)}>编辑文章</button>{/if}<button class="secondary" onclick={() => reader.close()}>关闭</button></div></header>
 		<h1 id="article-heading">{reading.title}</h1>
 		<time datetime={reading.updatedAt}>最后编辑：{date(reading.updatedAt)}（北京时间）</time>
+		<nav class="article-taxonomy" aria-label="文章分类信息">
+			<a href={`/categories/?category=${encodeURIComponent(reading.category || "")}`}>{reading.category || "未分类"}</a>
+			{#each reading.tags || [] as tag}<a href={`/tags/?tag=${encodeURIComponent(tag)}`}>#{tag}</a>{/each}
+			{#if reading.series}<a href={`/series/?series=${encodeURIComponent(reading.series)}`}>{reading.series} · 第 {reading.seriesOrder || 0} 篇</a>{/if}
+		</nav>
 		<div class="article-body">{@html reading.html || ""}</div>
 	{/if}
 </dialog>
 
 <style>
+	.organization-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+	.article-taxonomy { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0; color: var(--btn-content); }
+	@media (max-width: 600px) { .organization-fields { grid-template-columns: 1fr; } }
 	.workspace { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem; }
 	.workspace, .panel { color: var(--content-meta); }
 	.toolbar, header, .post-footer { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }

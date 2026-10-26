@@ -2,7 +2,8 @@
 import I18nKey from "@i18n/i18nKey";
 import { i18n } from "@i18n/translation";
 import { Icon } from "astro-icon/components";
-import { getCategoryList, getSortedPostsList } from "@/utils/content-utils";
+import OnlineArticleCount from "@/components/features/OnlineArticleCount.svelte";
+import { getCategoryList } from "@/utils/content-utils";
 import { url } from "@/utils/url-utils";
 
 interface Props {
@@ -12,7 +13,6 @@ interface Props {
 const { currentPostCategory } = Astro.props as Props;
 
 const categories = await getCategoryList();
-const totalPosts = (await getSortedPostsList()).length;
 const homeUrl = url("/");
 const archiveUrl = url("/archive/");
 
@@ -67,7 +67,7 @@ function initialActive(categoryName: string): {
       data-active={initialActive("__archive__").active ? "" : undefined}
     >
       {i18n(I18nKey.archive)}
-      <span class="pill-count">{totalPosts}</span>
+      <span class="pill-count"><OnlineArticleCount client:load /></span>
     </a>
     <div class="category-divider shrink-0"></div>
     <div class="scroll-area relative">

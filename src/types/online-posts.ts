@@ -1,5 +1,12 @@
 /** Public article data. Timestamps and revisions are assigned by the server. */
-export type OnlinePost = {
+export type ArticleOrganization = {
+	category?: string;
+	tags?: string[];
+	series?: string;
+	seriesOrder?: number;
+};
+
+export type OnlinePost = ArticleOrganization & {
 	id: string;
 	title: string;
 	body: string;
@@ -9,7 +16,7 @@ export type OnlinePost = {
 	html?: string;
 };
 
-export type SaveOnlinePost = {
+export type SaveOnlinePost = ArticleOrganization & {
 	id: string;
 	title: string;
 	body: string;
