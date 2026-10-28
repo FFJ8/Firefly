@@ -130,6 +130,20 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 			const profile = await env.BLOG_DB.prepare("SELECT avatar FROM profile_settings WHERE id = 1").first<{ avatar: string }>();
 			return json({ avatar: profile?.avatar || null });
 		}
+		if (path === "/api/blog/announcement" && request.method === "GET") {
+			const settings = await env.BLOG_DB.prepare("SELECT content, updated_at AS updatedAt FROM announcement_settings WHERE id = 1").first<{ content: string; updatedAt: string }>();
+			return json({ content: settings?.content ?? "欢迎来到我的博客！", updatedAt: settings?.updatedAt ?? null });
+		}
+		if (path === "/api/blog/announcement" && request.method === "PUT") {
+			if (!(await isAdmin(request, env))) return json({ error: "请先登录站长账号" }, 401);
+			const payload = await readJson(request, 8000) as { content?: unknown };
+			if (typeof payload?.content !== "string" || payload.content.length > 2000) return json({ error: "公告最多 2000 字" }, 400);
+			const content = payload.content.trim();
+			const updatedAt = new Date().toISOString();
+			await env.BLOG_DB.prepare("INSERT INTO announcement_settings (id, content, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
+				.bind(content, updatedAt).run();
+			return json({ content, updatedAt });
+		}
 		if (path === "/api/blog/avatar" && request.method === "PUT") {
 			if (!(await isAdmin(request, env))) return json({ error: "请先登录站长账号" }, 401);
 			const payload = await readJson(request, 400000) as { avatar?: unknown };

@@ -11,6 +11,7 @@ test("online articles enforce owner authentication and preserve edits", async ()
 	database.exec(readFileSync(new URL("../migrations/0002_profile_avatar.sql", import.meta.url), "utf8"));
 	database.exec(readFileSync(new URL("../migrations/0003_article_organization.sql", import.meta.url), "utf8"));
 	database.exec(readFileSync(new URL("../migrations/0004_managed_content.sql", import.meta.url), "utf8"));
+	database.exec(readFileSync(new URL("../migrations/0005_announcement.sql", import.meta.url), "utf8"));
 	const password = "local-test-password-only";
 	const salt = "test-salt";
 	class Query implements Statement {
@@ -49,6 +50,11 @@ test("online articles enforce owner authentication and preserve edits", async ()
 		assert.equal((await request("avatar", "PUT", {avatar: "x".repeat(400001)})).status, 413);
 		assert.equal((await request("avatar", "PUT", {avatar})).status, 200);
 		assert.deepEqual(await (await request("avatar", "GET", undefined, false)).json(), {avatar});
+		assert.equal((await request("announcement", "GET", undefined, false).then((response) => response.json()) as {content:string}).content, "欢迎来到我的博客！");
+		assert.equal((await request("announcement", "PUT", {content:"网站更新"}, false)).status, 401);
+		assert.equal((await request("announcement", "PUT", {content:"x".repeat(2001)})).status, 400);
+		assert.equal((await request("announcement", "PUT", {content:"网站更新"})).status, 200);
+		assert.equal((await request("announcement", "GET", undefined, false).then((response) => response.json()) as {content:string}).content, "网站更新");
 		assert.deepEqual(await (await request("entries?kind=dynamic", "GET", undefined, false)).json(), {entries: []});
 		assert.equal((await request("media", "POST", {image: avatar}, false)).status, 401);
 		assert.equal((await request("media", "POST", {image: "data:image/jpeg;base64,aGVsbG8="})).status, 400);
