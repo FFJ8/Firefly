@@ -386,6 +386,30 @@ html.is-page-transitioning .banner-home-text-overlay {
     font-size: 0.9rem;
 }
 
+/* First visit: reuse the existing wallpaper and banner text as a full-screen entrance. */
+.banner-enter-button { display: none; cursor: pointer; }
+html.intro-pending, html.intro-pending body { overflow: hidden !important; }
+html.intro-pending body.is-home #wallpaper-wrapper {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    transform: none !important;
+    display: block !important;
+    z-index: 1000 !important;
+}
+html.intro-pending body.is-home #banner-images-container { display: block !important; height: 100% !important; }
+html.intro-pending body.is-home #banner-overlay-container .banner-home-text-overlay { display: flex !important; }
+html.intro-pending body.is-home #top-row,
+html.intro-pending body.is-home #content-panel,
+html.intro-pending body.is-home #nav-menu-panel { visibility: hidden !important; pointer-events: none !important; }
+html.intro-pending body.is-home #header-waves,
+html.intro-pending body.is-home #wallpaper-gradient,
+html.intro-pending body.is-home #scroll-down-indicator,
+html.intro-pending body.is-home #bg-player { display: none !important; }
+html.intro-pending body.is-home .banner-links .banner-link:not(.banner-enter-button) { display: none !important; }
+html.intro-pending body.is-home .banner-enter-button { display: inline-flex !important; }
+
 /* banner 首页标题下有链接时，主内容容器会拦截点击；让容器不拦截、网格内容恢复可交互。
    规则锚在 #content-panel / #content-panel-inner 两个 ID 上，改 ID 会使其静默失效 */
 body.is-home.enable-banner #content-panel > #content-panel-inner {

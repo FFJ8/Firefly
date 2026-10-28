@@ -58,6 +58,9 @@ const homeTextLinksEnable = homeText?.linksEnable !== false;
                                 </a>
                             );
                         })}
+                        <button type="button" id="enter-home-button" class="banner-link banner-enter-button" aria-label="进入网站" title="进入网站" style="color: #fff">
+                            <Icon name="material-symbols:arrow-forward-rounded" class="text-[1.25rem]" style="fill: currentColor" />
+                        </button>
                     </div>
                 )}
             </div>
@@ -66,6 +69,11 @@ const homeTextLinksEnable = homeText?.linksEnable !== false;
 )}
 
 <script is:inline>
+    document.getElementById('enter-home-button')?.addEventListener('click', () => {
+        try { sessionStorage.setItem('firefly:home-entered', '1'); } catch { /* Continue without persistence. */ }
+        document.documentElement.classList.remove('intro-pending');
+        document.querySelector('#navbar a')?.focus({ preventScroll: true });
+    });
     function setRandomSubtitle() {
         const subtitleElement = document.getElementById('banner-subtitle');
         if (!subtitleElement) return;

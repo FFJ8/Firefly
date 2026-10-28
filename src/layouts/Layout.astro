@@ -161,6 +161,13 @@ const ogImageAlt = propsOgImageAlt ?? pageTitle;
     <style is:inline>
 			@layer properties, theme, base, components, utilities;
 		</style>
+    {isHomePageCheck && <script is:inline>
+      try {
+        if (sessionStorage.getItem("firefly:home-entered") !== "1") document.documentElement.classList.add("intro-pending");
+      } catch {
+        document.documentElement.classList.add("intro-pending");
+      }
+    </script>}
     {analyticsConfig?.googleAnalyticsId && (
             <GoogleAnalytics analyticsId={analyticsConfig.googleAnalyticsId} />
     )}
