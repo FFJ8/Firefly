@@ -1,6 +1,7 @@
 ---
 import { Icon } from "astro-icon/components";
 import ProjectCard from "@/components/pages/projects/ProjectCard.astro";
+import ManagedCollection from "@/components/features/ManagedCollection.svelte";
 import { siteConfig } from "@/config";
 import I18nKey from "@/i18n/i18nKey";
 import { i18n } from "@/i18n/translation";
@@ -43,6 +44,7 @@ const statusFilters = PROJECT_STATUS_KEYS.map((key) => {
 ---
 
 <MainGridLayout title={title} description={description}>
+	<ManagedCollection client:load kind="project" label="项目" />
 	<section class="page-shell">
 		<!-- 标题面板 -->
 		<header class="card-base page-header">

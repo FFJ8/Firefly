@@ -1,12 +1,12 @@
 <script lang="ts">
-	let { onclick }: { onclick: () => void } = $props();
+	let { onclick, label = "文章" }: { onclick: () => void; label?: string } = $props();
 </script>
 
 <button
 	type="button"
 	class="card-base new-post-card"
-	aria-label="新建文章"
-	title="新建文章"
+	aria-label={`新建${label}`}
+	title={`新建${label}`}
 	{onclick}
 >
 	<svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">

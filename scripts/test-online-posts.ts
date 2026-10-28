@@ -10,6 +10,7 @@ test("online articles enforce owner authentication and preserve edits", async ()
 	database.exec(readFileSync(new URL("../migrations/0001_online_posts.sql", import.meta.url), "utf8"));
 	database.exec(readFileSync(new URL("../migrations/0002_profile_avatar.sql", import.meta.url), "utf8"));
 	database.exec(readFileSync(new URL("../migrations/0003_article_organization.sql", import.meta.url), "utf8"));
+	database.exec(readFileSync(new URL("../migrations/0004_managed_content.sql", import.meta.url), "utf8"));
 	const password = "local-test-password-only";
 	const salt = "test-salt";
 	class Query implements Statement {
@@ -40,7 +41,7 @@ test("online articles enforce owner authentication and preserve edits", async ()
 		assert.equal(loggedIn.status,200); cookie=loggedIn.headers.get("Set-Cookie")!.split(";")[0];
 		assert.match(loggedIn.headers.get("Set-Cookie")!,/HttpOnly; Secure; SameSite=Strict/);
 		assert.deepEqual(await (await request("session")).json(),{admin:true});
-		const avatar = "data:image/jpeg;base64," + Buffer.from([255,216,255,224,255,217]).toString("base64");
+		const avatar = "data:image/webp;base64," + Buffer.from("RIFF1234WEBP1234").toString("base64");
 		assert.equal((await request("avatar", "PUT", {avatar}, false)).status, 401);
 		assert.equal((await request("avatar", "PUT", {avatar}, true, "https://evil.example")).status, 403);
 		assert.equal((await request("avatar", "PUT", {avatar: "data:image/svg+xml;base64,PHN2Zz4="})).status, 400);
@@ -48,6 +49,24 @@ test("online articles enforce owner authentication and preserve edits", async ()
 		assert.equal((await request("avatar", "PUT", {avatar: "x".repeat(400001)})).status, 413);
 		assert.equal((await request("avatar", "PUT", {avatar})).status, 200);
 		assert.deepEqual(await (await request("avatar", "GET", undefined, false)).json(), {avatar});
+		assert.deepEqual(await (await request("entries?kind=dynamic", "GET", undefined, false)).json(), {entries: []});
+		assert.equal((await request("media", "POST", {image: avatar}, false)).status, 401);
+		assert.equal((await request("media", "POST", {image: "data:image/jpeg;base64,aGVsbG8="})).status, 400);
+		const uploaded = await (await request("media", "POST", {image: avatar})).json() as {id:string;url:string};
+		assert.match(uploaded.url, /^\/api\/blog\/media\//);
+		const served = await request(`media/${uploaded.id}`, "GET", undefined, false);
+		assert.equal(served.status, 200); assert.equal(served.headers.get("Content-Type"), "image/webp");
+		const entryId = crypto.randomUUID();
+		const entry = {id: entryId, kind:"gallery", title:"图片测试", body:"春天的相册", imageIds:[uploaded.id], revision:0};
+		assert.equal((await request("entries", "PUT", entry, false)).status, 401);
+		assert.equal((await request("entries", "PUT", {...entry, imageIds:[crypto.randomUUID()]})).status, 400);
+		assert.equal((await request("entries", "PUT", entry)).status, 200);
+		const gallery = await (await request("entries?kind=gallery", "GET", undefined, false)).json() as {entries:{id:string;imageIds:string[];revision:number}[]};
+		assert.equal(gallery.entries[0].id, entryId); assert.deepEqual(gallery.entries[0].imageIds, [uploaded.id]); assert.equal(gallery.entries[0].revision, 1);
+		assert.equal((await request("entries", "PUT", {...entry, revision:0, title:"旧窗口"})).status, 409);
+		assert.equal((await request("entries", "PUT", {...entry, revision:1, title:"新标题"})).status, 200);
+		const entrySearch = await (await request("search?q=春天", "GET", undefined, false)).json() as {results:{url:string}[]};
+		assert.equal(entrySearch.results[0].url, `/gallery/#online-${entryId}`);
 		assert.deepEqual(await (await request("overview", "GET", undefined, false)).json(), {postCount:0, characterCount:0, lastUpdated:null, categoryCount:0, tagCount:0});
 		assert.deepEqual(await (await request("calendar", "GET", undefined, false)).json(), {posts:[]});
 		assert.deepEqual(await (await request("search?q=正文", "GET", undefined, false)).json(), {results:[]});
@@ -76,9 +95,9 @@ test("online articles enforce owner authentication and preserve edits", async ()
 		assert.deepEqual(calendar.posts, [{id, title:article.title, published:categorized.createdAt}]);
 		for (const keyword of ["标题", "新正文", "日常", "生活", "C++ & 笔记", "记录"]) {
 			const found = await (await request(`search?q=${encodeURIComponent(keyword)}`, "GET", undefined, false)).json() as {results: {url:string; title:string; excerpt:string}[]};
-			assert.equal(found.results.length, 1, `search should find ${keyword}`);
-			assert.equal(found.results[0].url, `/articles/?article=${id}`);
-			assert.equal(found.results[0].title, article.title);
+			const articleResult = found.results.find((result) => result.url === `/articles/?article=${id}`);
+			assert.ok(articleResult, `search should find ${keyword}`);
+			assert.equal(articleResult.title, article.title);
 		}
 		assert.deepEqual(await (await request("search?q=不存在的词", "GET", undefined, false)).json(), {results:[]});
 		const same = await (await request("posts", "PUT", organized)).json() as {updatedAt: string};

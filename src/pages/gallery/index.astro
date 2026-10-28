@@ -1,6 +1,7 @@
 ---
 import { Icon } from "astro-icon/components";
 import AlbumCard from "@/components/pages/gallery/AlbumCard.astro";
+import ManagedCollection from "@/components/features/ManagedCollection.svelte";
 import { galleryConfig, siteConfig } from "@/config";
 import I18nKey from "@/i18n/i18nKey";
 import { i18n } from "@/i18n/translation";
@@ -29,6 +30,7 @@ const allTags = [...new Set(albums.flatMap((a) => a.tags || []))].sort();
 ---
 
 <MainGridLayout title={title} description={description}>
+  <ManagedCollection client:load kind="gallery" label="相册" />
   <div class="page-shell">
     <!-- 页面标题和描述面板（与下方相册列表分离） -->
     <div class="card-base z-10 px-9 py-6 mb-4 relative w-full">

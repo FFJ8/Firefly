@@ -19,6 +19,18 @@ const encoder = new TextEncoder();
 const fields = "id, title, body, created_at AS createdAt, updated_at AS updatedAt, revision, category, tags, series, series_order AS seriesOrder";
 const sessionDuration = 7 * 24 * 60 * 60;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const contentKinds = new Set(["dynamic", "project", "gallery"]);
+const webpPattern = /^data:image\/webp;base64,([A-Za-z0-9+/]+={0,2})$/;
+
+function webpBytes(data: unknown, maxBytes: number): Uint8Array | null {
+	if (typeof data !== "string") return null;
+	const match = webpPattern.exec(data);
+	if (!match || match[1].length > Math.ceil(maxBytes / 3) * 4 + 4) return null;
+	let binary: string;
+	try { binary = atob(match[1]); } catch { return null; }
+	if (binary.length < 16 || binary.length > maxBytes || binary.slice(0, 4) !== "RIFF" || binary.slice(8, 12) !== "WEBP") return null;
+	return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
 
 function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
 	return new Response(JSON.stringify(data), { status, headers: {
@@ -122,9 +134,7 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 			if (!(await isAdmin(request, env))) return json({ error: "请先登录站长账号" }, 401);
 			const payload = await readJson(request, 400000) as { avatar?: unknown };
 			const avatar = payload?.avatar;
-			if (typeof avatar !== "string" || (avatar.length - 23) % 4 !== 0 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(avatar)) return json({ error: "请选择有效的头像图片" }, 400);
-			const binary = atob(avatar.slice(23));
-			if (binary.length < 4 || !binary.startsWith("\xff\xd8\xff") || !binary.endsWith("\xff\xd9")) return json({ error: "图片格式无效" }, 400);
+			if (!webpBytes(avatar, 280000)) return json({ error: "请选择有效的 WebP 头像图片" }, 400);
 			await env.BLOG_DB.prepare("INSERT INTO profile_settings (id, avatar, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET avatar = excluded.avatar, updated_at = excluded.updated_at")
 				.bind(avatar, new Date().toISOString()).run();
 			return json({ avatar });
@@ -134,6 +144,54 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 			const token = tokenFrom(request);
 			if (token) await env.BLOG_DB.prepare("DELETE FROM admin_sessions WHERE token_hash = ?").bind(await digest(token)).run();
 			return json({ admin: false }, 200, { "Set-Cookie": sessionCookie("", 0) });
+		}
+		if (path === "/api/blog/media" && request.method === "POST") {
+			if (!(await isAdmin(request, env))) return json({ error: "请先登录站长账号" }, 401);
+			const payload = await readJson(request, 500000) as { image?: unknown };
+			const bytes = webpBytes(payload?.image, 350000);
+			if (!bytes) return json({ error: "图片必须是压缩后的 WebP，且不超过 350 KB" }, 400);
+			const id = crypto.randomUUID();
+			await env.BLOG_DB.prepare("INSERT INTO online_media (id, data, created_at) VALUES (?, ?, ?)")
+				.bind(id, payload.image, new Date().toISOString()).run();
+			return json({ id, url: `/api/blog/media/${id}` });
+		}
+		if (path.startsWith("/api/blog/media/") && request.method === "GET") {
+			const id = path.slice("/api/blog/media/".length);
+			if (!uuidPattern.test(id)) return json({ error: "图片不存在" }, 404);
+			const media = await env.BLOG_DB.prepare("SELECT data FROM online_media WHERE id = ?").bind(id).first<{ data: string }>();
+			const bytes = webpBytes(media?.data, 350000);
+			return bytes ? new Response(bytes.buffer as ArrayBuffer, { headers: { "Content-Type": "image/webp", "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" } }) : json({ error: "图片不存在" }, 404);
+		}
+		if (path === "/api/blog/entries" && request.method === "GET") {
+			const kind = url.searchParams.get("kind") || "";
+			if (!contentKinds.has(kind)) return json({ error: "内容类型无效" }, 400);
+			const entries = await env.BLOG_DB.prepare("SELECT id, kind, title, body, image_ids AS imageIds, created_at AS createdAt, updated_at AS updatedAt, revision FROM online_entries WHERE kind = ? ORDER BY updated_at DESC, id DESC")
+				.bind(kind).all<{ id: string; kind: string; title: string; body: string; imageIds: string; createdAt: string; updatedAt: string; revision: number }>();
+			return json({ entries: entries.results.map((entry) => ({ ...entry, imageIds: JSON.parse(entry.imageIds) })) });
+		}
+		if (path === "/api/blog/entries" && request.method === "PUT") {
+			if (!(await isAdmin(request, env))) return json({ error: "请先登录站长账号" }, 401);
+			const entry = await readJson(request, 30000) as { id?: unknown; kind?: unknown; title?: unknown; body?: unknown; imageIds?: unknown; revision?: unknown };
+			if (!entry || typeof entry.id !== "string" || !uuidPattern.test(entry.id) || typeof entry.kind !== "string" || !contentKinds.has(entry.kind)
+				|| typeof entry.title !== "string" || !entry.title.trim() || entry.title.length > 160 || typeof entry.body !== "string" || entry.body.length > 10000
+				|| !Array.isArray(entry.imageIds) || entry.imageIds.length > (entry.kind === "gallery" ? 20 : 5)
+				|| entry.imageIds.some((id: unknown) => typeof id !== "string" || !uuidPattern.test(id)) || !Number.isSafeInteger(entry.revision) || (entry.revision as number) < 0) return json({ error: "请填写标题，正文最多 1 万字，图片数量超出限制" }, 400);
+			const images = [...new Set(entry.imageIds as string[])];
+			const existing = await env.BLOG_DB.prepare("SELECT id, kind, revision FROM online_entries WHERE id = ?").bind(entry.id).first<{ id: string; kind: string; revision: number }>();
+			if (existing && existing.kind !== entry.kind) return json({ error: "内容类型不可更改" }, 400);
+			if (existing && existing.revision !== entry.revision || !existing && entry.revision !== 0) return json({ error: "内容已在其他窗口更新，请刷新后重试" }, 409);
+			for (const imageId of images) {
+				if (!(await env.BLOG_DB.prepare("SELECT id FROM online_media WHERE id = ?").bind(imageId).first())) return json({ error: "有图片尚未上传成功" }, 400);
+			}
+			const now = new Date().toISOString();
+			if (existing) {
+				const updated = await env.BLOG_DB.prepare("UPDATE online_entries SET title = ?, body = ?, image_ids = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ?")
+					.bind(entry.title.trim(), entry.body, JSON.stringify(images), now, entry.id, entry.revision).run();
+				if (!updated.meta.changes) return json({ error: "内容已在其他窗口更新，请刷新后重试" }, 409);
+			}
+			else await env.BLOG_DB.prepare("INSERT INTO online_entries (id, kind, title, body, image_ids, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, 1)")
+				.bind(entry.id, entry.kind, entry.title.trim(), entry.body, JSON.stringify(images), now, now).run();
+			return json({ saved: true });
 		}
 		if (path === "/api/blog/overview" && request.method === "GET") {
 			const summary = await env.BLOG_DB.prepare("SELECT COUNT(*) AS postCount, COALESCE(SUM(length(body)), 0) AS characterCount, MAX(updated_at) AS lastUpdated FROM online_posts")
@@ -156,13 +214,21 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 				OR instr(lower(series), lower(?)) > 0 ORDER BY updated_at DESC, id DESC`)
 				.bind(query, query, query, query, query).all<{ id: string; title: string; body: string; category: string; tags: string; series: string }>();
 			const needle = query.toLocaleLowerCase();
-			return json({ results: result.results.map((post) => {
+			const articleResults = result.results.map((post) => {
 				const fields = [post.title, post.body, post.category, ...JSON.parse(post.tags) as string[], post.series];
 				const matched = fields.find((value) => value.toLocaleLowerCase().includes(needle)) || post.title;
 				const index = matched.toLocaleLowerCase().indexOf(needle);
 				const excerpt = matched.slice(Math.max(0, index - 45), index + query.length + 75).replace(/\s+/g, " ");
 				return { url: `/articles/?article=${encodeURIComponent(post.id)}`, title: post.title, excerpt };
-			}) });
+			});
+			const entries = await env.BLOG_DB.prepare("SELECT id, kind, title, body FROM online_entries WHERE instr(lower(title), lower(?)) > 0 OR instr(lower(body), lower(?)) > 0 ORDER BY updated_at DESC")
+				.bind(query, query).all<{ id: string; kind: string; title: string; body: string }>();
+			const entryResults = entries.results.map((entry) => {
+				const matched = entry.title.toLocaleLowerCase().includes(needle) ? entry.title : entry.body;
+				const index = matched.toLocaleLowerCase().indexOf(needle);
+				return { url: `/${entry.kind === "project" ? "projects" : entry.kind === "gallery" ? "gallery" : "dynamic"}/#online-${entry.id}`, title: entry.title, excerpt: matched.slice(Math.max(0, index - 45), index + query.length + 75).replace(/\s+/g, " ") };
+			});
+			return json({ results: [...articleResults, ...entryResults] });
 		}
 		if (path === "/api/blog/catalog" && request.method === "GET") {
 			const mode = url.searchParams.get("mode");

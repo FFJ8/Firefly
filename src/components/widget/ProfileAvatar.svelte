@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import { compressWebp } from "@/utils/webp-upload";
 	const instanceId = $props.id();
 	let avatar = $state<string | null>(null);
 	let admin = $state(false);
@@ -28,22 +29,9 @@
 		const file = input.files?.[0];
 		if (!file) return;
 		preview = ""; error = "";
-		if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
-			error = "请选择不超过 10 MB 的 JPG、PNG 或 WebP 图片"; return;
-		}
 		busy = true;
 		try {
-			const bitmap = await createImageBitmap(file);
-			try {
-				const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 512;
-				const context = canvas.getContext("2d");
-				if (!context) throw new Error("无法处理图片");
-				context.fillStyle = "#fff"; context.fillRect(0, 0, 512, 512);
-				const side = Math.min(bitmap.width, bitmap.height);
-				context.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 512, 512);
-				preview = canvas.toDataURL("image/jpeg", 0.85);
-				if (preview.length > 390000) { preview = ""; throw new Error("图片过于复杂，请选择其他图片"); }
-			} finally { bitmap.close(); }
+			preview = await compressWebp(file, { maxDimension: 512, maxBytes: 280000, square: true });
 		} catch (cause) { error = cause instanceof Error ? cause.message : "无法读取图片，请重新选择"; }
 		finally { busy = false; }
 	}
@@ -77,7 +65,7 @@
 <dialog bind:this={dialog} class="card-base" aria-labelledby={`${instanceId}-heading`} oncancel={(event) => { if (busy) event.preventDefault(); }}>
 	<h2 id={`${instanceId}-heading`}>更换头像</h2>
 	<p>选择图片后预览，保存后所有访客都能看到新头像。</p>
-	<label for={`${instanceId}-file`}>选择图片（JPG、PNG、WebP，最多 10 MB）</label>
+	<label for={`${instanceId}-file`}>选择图片（最多 10 MB，保存时自动压缩为 WebP）</label>
 	<input id={`${instanceId}-file`} bind:this={input} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onchange={select} disabled={busy} />
 	{#if !preview && !busy}<p class="picker-hint">若文件窗口未打开或已取消，可点击上方「选择文件」重试。</p>{/if}
 	{#if preview}<img class="preview" src={preview} alt="新头像预览" width="240" height="240" />{/if}
