@@ -69,10 +69,20 @@ const homeTextLinksEnable = homeText?.linksEnable !== false;
 )}
 
 <script is:inline>
-    document.getElementById('enter-home-button')?.addEventListener('click', () => {
+    document.getElementById('enter-home-button')?.addEventListener('click', (event) => {
+        const root = document.documentElement;
+        if (!root.classList.contains('intro-pending')) return;
+        event.currentTarget.disabled = true;
         try { sessionStorage.setItem('firefly:home-entered', '1'); } catch { /* Continue without persistence. */ }
-        document.documentElement.classList.remove('intro-pending');
-        document.querySelector('#navbar a')?.focus({ preventScroll: true });
+        root.classList.add('intro-opening');
+        // Resolve the full-height starting frame before shrinking the wallpaper.
+        document.getElementById('wallpaper-wrapper')?.getBoundingClientRect();
+        root.classList.remove('intro-pending');
+        const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 900;
+        window.setTimeout(() => {
+            root.classList.remove('intro-opening');
+            document.querySelector('#navbar a')?.focus({ preventScroll: true });
+        }, duration);
     });
     function setRandomSubtitle() {
         const subtitleElement = document.getElementById('banner-subtitle');

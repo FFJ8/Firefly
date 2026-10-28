@@ -410,6 +410,34 @@ html.intro-pending body.is-home #bg-player { display: none !important; }
 html.intro-pending body.is-home .banner-links .banner-link:not(.banner-enter-button) { display: none !important; }
 html.intro-pending body.is-home .banner-enter-button { display: inline-flex !important; }
 
+html.intro-opening, html.intro-opening body { overflow: hidden !important; }
+html.intro-opening body.is-home #wallpaper-wrapper {
+    position: fixed !important;
+    inset: 0 auto auto 0 !important;
+    width: 100vw !important;
+    z-index: 10 !important;
+    transition: height 900ms cubic-bezier(.33, 0, .2, 1) !important;
+}
+html.intro-opening body.is-home #navbar-wrapper {
+    animation: intro-menu-drawer 900ms cubic-bezier(.33, 0, .2, 1) both;
+}
+html.intro-opening body.is-home #content-panel {
+    animation: intro-content-drawer 900ms cubic-bezier(.33, 0, .2, 1) both;
+}
+@keyframes intro-menu-drawer {
+    from { transform: translateY(-110%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes intro-content-drawer {
+    from { transform: translateY(100dvh); }
+    to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    html.intro-opening body.is-home #wallpaper-wrapper { transition: none !important; }
+    html.intro-opening body.is-home #navbar-wrapper,
+    html.intro-opening body.is-home #content-panel { animation: none !important; }
+}
+
 /* banner 首页标题下有链接时，主内容容器会拦截点击；让容器不拦截、网格内容恢复可交互。
    规则锚在 #content-panel / #content-panel-inner 两个 ID 上，改 ID 会使其静默失效 */
 body.is-home.enable-banner #content-panel > #content-panel-inner {
