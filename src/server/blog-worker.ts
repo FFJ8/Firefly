@@ -146,6 +146,24 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 			const result = await env.BLOG_DB.prepare("SELECT id, title, created_at AS published FROM online_posts ORDER BY created_at DESC, id DESC").all<{ id: string; title: string; published: string }>();
 			return json({ posts: result.results });
 		}
+		if (path === "/api/blog/search" && request.method === "GET") {
+			const query = (url.searchParams.get("q") || "").trim();
+			if (!query) return json({ results: [] });
+			if (query.length > 100) return json({ error: "搜索词不能超过 100 字" }, 400);
+			const result = await env.BLOG_DB.prepare(`SELECT id, title, body, category, tags, series FROM online_posts
+				WHERE instr(lower(title), lower(?)) > 0 OR instr(lower(body), lower(?)) > 0
+				OR instr(lower(category), lower(?)) > 0 OR instr(lower(tags), lower(?)) > 0
+				OR instr(lower(series), lower(?)) > 0 ORDER BY updated_at DESC, id DESC`)
+				.bind(query, query, query, query, query).all<{ id: string; title: string; body: string; category: string; tags: string; series: string }>();
+			const needle = query.toLocaleLowerCase();
+			return json({ results: result.results.map((post) => {
+				const fields = [post.title, post.body, post.category, ...JSON.parse(post.tags) as string[], post.series];
+				const matched = fields.find((value) => value.toLocaleLowerCase().includes(needle)) || post.title;
+				const index = matched.toLocaleLowerCase().indexOf(needle);
+				const excerpt = matched.slice(Math.max(0, index - 45), index + query.length + 75).replace(/\s+/g, " ");
+				return { url: `/articles/?article=${encodeURIComponent(post.id)}`, title: post.title, excerpt };
+			}) });
+		}
 		if (path === "/api/blog/catalog" && request.method === "GET") {
 			const mode = url.searchParams.get("mode");
 			const query = mode === "categories" ? "SELECT category AS name, COUNT(*) AS count FROM online_posts GROUP BY category ORDER BY count DESC, name"

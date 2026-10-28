@@ -4,7 +4,7 @@ import { i18n } from "@i18n/translation";
 import { onMount } from "svelte";
 import Icon from "@/components/common/Icon.svelte";
 import type { SearchResult } from "@/global";
-import { url as formatUrl } from "@/utils/url-utils";
+import { searchSite } from "@/utils/site-search";
 
 // --- Props ---
 export let title = i18n(I18nKey.search);
@@ -14,7 +14,7 @@ export let description = "";
 let keyword = "";
 let results: SearchResult[] = [];
 let isSearching = false;
-let initialized = false;
+let searchRequestId = 0;
 
 // 在客户端获取 URL 参数
 const getInitialKeyword = (): string => {
@@ -25,82 +25,31 @@ const getInitialKeyword = (): string => {
 	return "";
 };
 
-// --- Mocks for Dev Mode ---
-const fakeResult: SearchResult[] = [
-	{
-		url: formatUrl("/"),
-		meta: { title: "Dev Mode Search Result 1" },
-		excerpt: "This is a <mark>mock</mark> result for development.",
-	},
-	{
-		url: formatUrl("/"),
-		meta: { title: "Dev Mode Search Result 2" },
-		excerpt: "Pagefind only works in <mark>production</mark> build.",
-	},
-];
-
 // --- Core Search Logic ---
 const search = async () => {
-	if (!initialized || !keyword.trim()) {
+	const requestId = ++searchRequestId;
+	if (!keyword.trim()) {
 		results = [];
+		isSearching = false;
 		return;
 	}
 	isSearching = true;
 
 	try {
-		if (import.meta.env.PROD && window.pagefind) {
-			const response = await window.pagefind.search(keyword);
-			const rawResults = await Promise.all(
-				response.results.map((item) => item.data()),
-			);
-			results = rawResults;
-		} else if (import.meta.env.DEV) {
-			// 开发模式下的模拟结果
-			results = fakeResult.filter(
-				(item) =>
-					item.excerpt.toLowerCase().includes(keyword.toLowerCase()) ||
-					item.meta.title.toLowerCase().includes(keyword.toLowerCase()),
-			);
-		}
+		const found = await searchSite(keyword);
+		if (requestId === searchRequestId) results = found;
 	} catch (error) {
 		console.error("Search error:", error);
-		results = [];
+		if (requestId === searchRequestId) results = [];
 	} finally {
-		isSearching = false;
+		if (requestId === searchRequestId) isSearching = false;
 	}
 };
 
 // --- Initialization onMount ---
 onMount(() => {
-	const initialize = async () => {
-		initialized = true;
-
-		// 从 URL 获取初始关键词
-		const initialKeyword = getInitialKeyword();
-		if (initialKeyword) {
-			keyword = initialKeyword;
-		}
-
-		// 如果有关键词，自动执行搜索
-		if (keyword.trim()) {
-			await search();
-		}
-	};
-
-	// 开发环境直接初始化
-	if (import.meta.env.DEV) {
-		initialize();
-	} else {
-		// 生产环境等待 Pagefind 加载
-		window.__loadPagefind?.();
-		if (window.pagefind) {
-			initialize();
-		} else {
-			document.addEventListener("pagefindready", initialize, {
-				once: true,
-			});
-		}
-	}
+	keyword = getInitialKeyword();
+	if (keyword.trim()) search();
 });
 
 let debounceTimer: NodeJS.Timeout;

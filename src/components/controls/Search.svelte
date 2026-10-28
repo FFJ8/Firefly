@@ -6,31 +6,16 @@ import { onMount } from "svelte";
 import Icon from "@/components/common/Icon.svelte";
 import type { SearchResult } from "@/global";
 import { FLOATING_PANEL_CLOSE_EVENT } from "@/utils/floating-panel-utils";
-import { url as formatUrl, getSearchUrl } from "@/utils/url-utils";
+import { getSearchUrl } from "@/utils/url-utils";
+import { searchSite } from "@/utils/site-search";
 
 // --- State ---
 let keywordDesktop = "";
 let keywordMobile = "";
 let result: SearchResult[] = [];
 let isSearching = false;
-let initialized = false;
 let debounceTimer: NodeJS.Timeout;
 let searchRequestId = 0;
-
-// --- Mocks for Dev Mode ---
-const fakeResult: SearchResult[] = [
-	{
-		url: formatUrl("/"),
-		meta: { title: "This Is a Fake Search Result" },
-		excerpt:
-			"Because Pagefind cannot work in the <mark>dev</mark> environment.",
-	},
-	{
-		url: formatUrl("/"),
-		meta: { title: "If You Want to Test the Search" },
-		excerpt: "Try running <mark>npm build && npm preview</mark> instead.",
-	},
-];
 
 // --- UI Logic ---
 // pagefind.js 是按需加载的（见 Navbar.astro），搜索 UI 一被碰到就触发。
@@ -93,30 +78,20 @@ const handleResultClick = (event: Event, url: string): void => {
 
 // --- Core Search Logic ---
 const search = async (keyword: string, isDesktop: boolean): Promise<void> => {
+	if (import.meta.env.SSR) return;
 	if (!keyword) {
 		cancelPendingSearch();
 		setPanelVisibility(false, isDesktop);
 		result = [];
 		return;
 	}
-	if (!initialized) return;
-
 	clearTimeout(debounceTimer);
 	const requestId = ++searchRequestId;
 	isSearching = true;
 
 	debounceTimer = setTimeout(async () => {
 		try {
-			let searchResults: SearchResult[] = [];
-
-			if (import.meta.env.PROD && window.pagefind) {
-				const response = await window.pagefind.search(keyword);
-				searchResults = await Promise.all(
-					response.results.map((item) => item.data()),
-				);
-			} else if (import.meta.env.DEV) {
-				searchResults = fakeResult;
-			}
+			const searchResults = await searchSite(keyword);
 
 			if (requestId !== searchRequestId) return;
 
@@ -138,46 +113,20 @@ const search = async (keyword: string, isDesktop: boolean): Promise<void> => {
 
 // --- Initialization onMount ---
 onMount(() => {
-	const initializePagefind = () => {
-		initialized = true;
-		if (keywordDesktop) search(keywordDesktop, true);
-		if (keywordMobile) search(keywordMobile, false);
-	};
-
-	if (import.meta.env.DEV) {
-		console.log("Pagefind mock enabled in development mode.");
-		initializePagefind();
-	} else {
-		if (window.pagefind) {
-			// If script already loaded
-			initializePagefind();
-		} else {
-			// Listen for the event
-			document.addEventListener("pagefindready", initializePagefind, {
-				once: true,
-			});
-			document.addEventListener("pagefindloaderror", initializePagefind, {
-				once: true,
-			});
-		}
-	}
-
 	const panel = document.getElementById("search-panel");
 	panel?.addEventListener(FLOATING_PANEL_CLOSE_EVENT, cancelPendingSearch);
 
 	return () => {
 		panel?.removeEventListener(FLOATING_PANEL_CLOSE_EVENT, cancelPendingSearch);
-		document.removeEventListener("pagefindready", initializePagefind);
-		document.removeEventListener("pagefindloaderror", initializePagefind);
 		cancelPendingSearch();
 	};
 });
 
 // --- Reactive Statements ---
-$: if (initialized && (keywordDesktop || keywordDesktop === "")) {
+$: if (typeof window !== "undefined" && (keywordDesktop || keywordDesktop === "")) {
 	search(keywordDesktop, true);
 }
-$: if (initialized && (keywordMobile || keywordMobile === "")) {
+$: if (typeof window !== "undefined" && (keywordMobile || keywordMobile === "")) {
 	search(keywordMobile, false);
 }
 </script>
