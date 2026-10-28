@@ -415,10 +415,10 @@ html.intro-pending body.is-home .banner-links { margin-top: 5rem !important; }
 html.intro-pending body.is-home .intro-callout {
     display: block;
     position: absolute;
-    right: calc(50% + 22px);
-    bottom: -2px;
-    width: min(210px, calc(50vw - 20px));
-    height: 132px;
+    right: calc(50% + 10px);
+    top: 5px;
+    width: min(180px, calc(50vw - 22px));
+    height: 150px;
     padding: 0;
     border: 0;
     background: none;
@@ -429,7 +429,7 @@ html.intro-pending body.is-home .intro-callout {
 }
 .intro-callout span {
     position: absolute;
-    top: 0;
+    top: 118px;
     left: 0;
     white-space: nowrap;
     font-size: 1rem;
@@ -447,12 +447,7 @@ html.intro-pending body.is-home .intro-callout {
 .intro-callout-line { stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .intro-callout:hover span, .intro-callout:focus-visible span { text-decoration: underline; text-underline-offset: 4px; }
 @media (max-width: 640px) {
-    html.intro-pending body.is-home .intro-callout {
-        right: calc(50% + 9px);
-        width: min(200px, calc(50vw - 28px));
-    }
-    .intro-callout span { top: 26px; font-size: .88rem; }
-    .intro-callout svg { transform: translate(35px, 18px) scale(.8); transform-origin: top left; }
+    .intro-callout span { font-size: .88rem; }
     .intro-callout-line { stroke-width: 3; }
 }
 
