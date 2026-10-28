@@ -417,7 +417,7 @@ html.intro-pending body.is-home .intro-callout {
     position: absolute;
     right: calc(50% + 10px);
     top: 5px;
-    width: min(180px, calc(50vw - 22px));
+    width: min(270px, calc(50vw - 22px));
     height: 150px;
     padding: 0;
     border: 0;
