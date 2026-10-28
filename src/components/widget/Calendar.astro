@@ -54,8 +54,8 @@ const heatmapWeekTemplate = i18n(I18nKey.calendarHeatmapWeek);
 // 获取当前语言
 const currentLang = siteConfig.lang || "en";
 
-const calendarDataUrl = url("/api/allPostMeta.json");
-const postUrlPrefix = url("/posts/");
+const calendarDataUrl = "/api/blog/calendar";
+const postUrlPrefix = url("/articles/?article=");
 ---
 
 <WidgetLayout name={i18n(I18nKey.calendar)} showTitle={showTitle} id="calendar-widget" class={className} style={style}>
@@ -123,29 +123,32 @@ const postUrlPrefix = url("/posts/");
 
 <script is:inline data-swup-ignore-script define:vars={{ monthNames, weekDays, yearText, currentLang, calendarDataUrl, postUrlPrefix, heatmapWeekTemplate }}>
   // State variables
-  let displayYear = new Date().getFullYear();
-  let displayMonth = new Date().getMonth();
+  let displayYear = siteCalendarDate(Date.now()).getFullYear();
+  let displayMonth = siteCalendarDate(Date.now()).getMonth();
   let currentView = 'day'; // 'day' | 'month' | 'year'
   let postDateMap = {};
   let allPostsData = [];
   let availableYears = [];
 
+  function siteCalendarDate(timestamp) {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(new Date(timestamp));
+    const field = name => Number(parts.find(part => part.type === name).value);
+    return new Date(field('year'), field('month') - 1, field('day'));
+  }
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  }
   async function fetchData() {
     try {
-      // 使用缓存避免 swup 导航时重复请求
-      if (window.__allPostMetaCache) {
-        allPostsData = window.__allPostMetaCache;
-      } else {
-        const response = await fetch(calendarDataUrl);
-        allPostsData = await response.json();
-        window.__allPostMetaCache = allPostsData;
-      }
-      
+      const response = await fetch(calendarDataUrl, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Calendar API unavailable');
+      const data = await response.json();
+      allPostsData = data.posts.map(post => ({ ...post, published: Date.parse(post.published) }));
       // Reconstruct postDateMap and availableYears
       postDateMap = {};
       const yearsSet = new Set();
       allPostsData.forEach(post => {
-        const date = new Date(post.published);
+        const date = siteCalendarDate(post.published);
         const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
         if (!postDateMap[dateKey]) {
           postDateMap[dateKey] = [];
@@ -180,7 +183,7 @@ const postUrlPrefix = url("/posts/");
     // Build weekly post counts: heatmapData[month][week] = count
     const heatmapData = Array.from({ length: 12 }, () => [0, 0, 0, 0]);
     allPostsData.forEach(post => {
-      const date = new Date(post.published);
+      const date = siteCalendarDate(post.published);
       if (date.getFullYear() !== displayYear) return;
       const month = date.getMonth();
       const day = date.getDate();
@@ -303,7 +306,7 @@ const postUrlPrefix = url("/posts/");
     }
 
     if (resetBtn) {
-      const now = new Date();
+      const now = siteCalendarDate(Date.now());
       const isCurrent = displayYear === now.getFullYear() && displayMonth === now.getMonth();
       resetBtn.style.display = (currentView === 'day' && isCurrent) ? 'none' : 'flex';
     }
@@ -314,7 +317,7 @@ const postUrlPrefix = url("/posts/");
   }
 
   function renderDayView() {
-    const now = new Date();
+    const now = siteCalendarDate(Date.now());
     const currentYear = displayYear;
     const currentMonth = displayMonth;
     const currentDate = now.getDate();
@@ -384,7 +387,7 @@ const postUrlPrefix = url("/posts/");
     
     // 获取当月所有文章
     const currentMonthPosts = allPostsData.filter(post => {
-      const date = new Date(post.published);
+      const date = siteCalendarDate(post.published);
       return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
     });
     
@@ -402,7 +405,7 @@ const postUrlPrefix = url("/posts/");
     // Calculate which months have posts for the currently displayed year
     const monthsWithPosts = new Set();
     allPostsData.forEach(post => {
-        const date = new Date(post.published);
+        const date = siteCalendarDate(post.published);
         if (date.getFullYear() === displayYear) {
             monthsWithPosts.add(date.getMonth());
         }
@@ -472,11 +475,11 @@ const postUrlPrefix = url("/posts/");
     
     if (postsList) {
       postsList.innerHTML = currentMonthPosts.map(post => {
-        const date = new Date(post.published);
+        const date = siteCalendarDate(post.published);
         const dateStr = `${date.getMonth() + 1}-${date.getDate()}`;
         return `
-        <a href="${postUrlPrefix}${post.id}/" class="flex justify-between items-center text-sm text-neutral-700 dark:text-neutral-300 hover:text-(--primary) dark:hover:text-(--primary) transition-colors px-2 py-1 rounded-sm hover:bg-(--btn-plain-bg-hover)">
-          <span class="truncate">${post.title}</span>
+        <a href="${postUrlPrefix}${post.id}" class="flex justify-between items-center text-sm text-neutral-700 dark:text-neutral-300 hover:text-(--primary) dark:hover:text-(--primary) transition-colors px-2 py-1 rounded-sm hover:bg-(--btn-plain-bg-hover)">
+          <span class="truncate">${escapeHtml(post.title)}</span>
           <span class="text-xs text-neutral-500 dark:text-neutral-400 ml-2 whitespace-nowrap">${dateStr}</span>
         </a>
       `}).join('');
@@ -532,11 +535,11 @@ const postUrlPrefix = url("/posts/");
 
           // 渲染文章列表
           postsList.innerHTML = posts.map(post => {
-            const date = new Date(post.published);
+            const date = siteCalendarDate(post.published);
             const dateStr = `${date.getMonth() + 1}-${date.getDate()}`;
             return `
-            <a href="${postUrlPrefix}${post.id}/" class="flex justify-between items-center text-sm text-neutral-700 dark:text-neutral-300 hover:text-(--primary) dark:hover:text-(--primary) transition-colors px-2 py-1 rounded-sm hover:bg-(--btn-plain-bg-hover)">
-              <span class="truncate">${post.title}</span>
+            <a href="${postUrlPrefix}${post.id}" class="flex justify-between items-center text-sm text-neutral-700 dark:text-neutral-300 hover:text-(--primary) dark:hover:text-(--primary) transition-colors px-2 py-1 rounded-sm hover:bg-(--btn-plain-bg-hover)">
+              <span class="truncate">${escapeHtml(post.title)}</span>
               <span class="text-xs text-neutral-500 dark:text-neutral-400 ml-2 whitespace-nowrap">${dateStr}</span>
             </a>
           `}).join('');
@@ -567,7 +570,7 @@ const postUrlPrefix = url("/posts/");
   }
 
   function resetToToday() {
-      const now = new Date();
+      const now = siteCalendarDate(Date.now());
       displayYear = now.getFullYear();
       displayMonth = now.getMonth();
       currentView = 'day';
@@ -576,7 +579,7 @@ const postUrlPrefix = url("/posts/");
 
   function initCalendar() {
       // Reset to current date on init
-      const now = new Date();
+      const now = siteCalendarDate(Date.now());
       displayYear = now.getFullYear();
       displayMonth = now.getMonth();
       
@@ -610,6 +613,8 @@ const postUrlPrefix = url("/posts/");
   // 防止 Swup 切页重跑脚本时重复注册监听器（此脚本的 data-swup-ignore-script 在 define:vars 构建时可能丢失）
   if (!window.__calendarInit) {
     window.__calendarInit = true;
+    window.addEventListener("blog-posts-change", fetchData);
+    setInterval(fetchData, 60000);
     // 页面切换时重新渲染
     document.addEventListener("swup:contentReplaced", () => {
       setTimeout(initCalendar, 100);

@@ -48,6 +48,8 @@ test("online articles enforce owner authentication and preserve edits", async ()
 		assert.equal((await request("avatar", "PUT", {avatar: "x".repeat(400001)})).status, 413);
 		assert.equal((await request("avatar", "PUT", {avatar})).status, 200);
 		assert.deepEqual(await (await request("avatar", "GET", undefined, false)).json(), {avatar});
+		assert.deepEqual(await (await request("overview", "GET", undefined, false)).json(), {postCount:0, characterCount:0, lastUpdated:null, categoryCount:0, tagCount:0});
+		assert.deepEqual(await (await request("calendar", "GET", undefined, false)).json(), {posts:[]});
 		const created = await request("posts","PUT",article); assert.equal(created.status,200);
 		const post = await created.json() as {revision:number;updatedAt:string;html:string};
 		assert.equal(post.revision,1); assert.ok(!Number.isNaN(Date.parse(post.updatedAt)));
@@ -67,6 +69,10 @@ test("online articles enforce owner authentication and preserve edits", async ()
 		assert.equal((await request("posts", "PUT", organized, false)).status, 401);
 		const categorized = await (await request("posts", "PUT", organized)).json() as {revision: number; tags: string[]; category: string; updatedAt: string; createdAt: string};
 		assert.equal(categorized.revision, 3); assert.equal(categorized.category, "日常"); assert.deepEqual(categorized.tags, ["生活", "C++ & 笔记"]);
+		const overview = await (await request("overview", "GET", undefined, false)).json() as {postCount:number; categoryCount:number; tagCount:number; characterCount:number; lastUpdated:string};
+		assert.equal(overview.postCount, 1); assert.equal(overview.categoryCount, 1); assert.equal(overview.tagCount, 2); assert.equal(overview.characterCount, "新正文".length); assert.equal(overview.lastUpdated, categorized.updatedAt);
+		const calendar = await (await request("calendar", "GET", undefined, false)).json() as {posts:{id:string;title:string;published:string}[]};
+		assert.deepEqual(calendar.posts, [{id, title:article.title, published:categorized.createdAt}]);
 		const same = await (await request("posts", "PUT", organized)).json() as {updatedAt: string};
 		assert.equal(same.updatedAt, categorized.updatedAt);
 		assert.equal((await request("posts", "PUT", {...organized, revision: 2, category: "旧分类"})).status, 409);

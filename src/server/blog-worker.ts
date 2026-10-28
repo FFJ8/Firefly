@@ -135,6 +135,17 @@ export async function handleBlog(request: Request, env: BlogEnv): Promise<Respon
 			if (token) await env.BLOG_DB.prepare("DELETE FROM admin_sessions WHERE token_hash = ?").bind(await digest(token)).run();
 			return json({ admin: false }, 200, { "Set-Cookie": sessionCookie("", 0) });
 		}
+		if (path === "/api/blog/overview" && request.method === "GET") {
+			const summary = await env.BLOG_DB.prepare("SELECT COUNT(*) AS postCount, COALESCE(SUM(length(body)), 0) AS characterCount, MAX(updated_at) AS lastUpdated FROM online_posts")
+				.first<{ postCount: number; characterCount: number; lastUpdated: string | null }>();
+			const categories = await env.BLOG_DB.prepare("SELECT COUNT(DISTINCT category) AS count FROM online_posts WHERE category != ''").first<{ count: number }>();
+			const tags = await env.BLOG_DB.prepare("SELECT COUNT(DISTINCT value) AS count FROM online_posts, json_each(online_posts.tags)").first<{ count: number }>();
+			return json({ postCount: summary?.postCount || 0, characterCount: summary?.characterCount || 0, lastUpdated: summary?.lastUpdated || null, categoryCount: categories?.count || 0, tagCount: tags?.count || 0 });
+		}
+		if (path === "/api/blog/calendar" && request.method === "GET") {
+			const result = await env.BLOG_DB.prepare("SELECT id, title, created_at AS published FROM online_posts ORDER BY created_at DESC, id DESC").all<{ id: string; title: string; published: string }>();
+			return json({ posts: result.results });
+		}
 		if (path === "/api/blog/catalog" && request.method === "GET") {
 			const mode = url.searchParams.get("mode");
 			const query = mode === "categories" ? "SELECT category AS name, COUNT(*) AS count FROM online_posts GROUP BY category ORDER BY count DESC, name"
