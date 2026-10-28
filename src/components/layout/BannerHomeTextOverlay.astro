@@ -58,7 +58,14 @@ const homeTextLinksEnable = homeText?.linksEnable !== false;
                                 </a>
                             );
                         })}
-                        <button type="button" id="enter-home-button" class="banner-link banner-enter-button" aria-label="进入网站" title="进入网站" style="color: #fff">
+                        <button type="button" class="intro-callout" data-enter-home aria-label="点这里进入网站">
+                            <span>点这里(≧∇≦」∠)_</span>
+                            <svg viewBox="0 0 210 132" preserveAspectRatio="none" aria-hidden="true">
+                                <path class="intro-callout-line" d="M105 36 C79 50 94 78 120 74 C151 70 137 49 120 62 C103 75 131 104 154 91 C177 78 158 70 150 84 C143 98 170 117 202 118" />
+                                <path class="intro-callout-line" d="M190 108 L202 118 L188 122" />
+                            </svg>
+                        </button>
+                        <button type="button" id="enter-home-button" data-enter-home class="banner-link banner-enter-button" aria-label="进入网站" title="进入网站" style="color: #fff">
                             <Icon name="material-symbols:arrow-forward-rounded" class="text-[1.25rem]" style="fill: currentColor" />
                         </button>
                     </div>
@@ -69,7 +76,7 @@ const homeTextLinksEnable = homeText?.linksEnable !== false;
 )}
 
 <script is:inline>
-    document.getElementById('enter-home-button')?.addEventListener('click', (event) => {
+    document.querySelectorAll('[data-enter-home]').forEach((button) => button.addEventListener('click', (event) => {
         const root = document.documentElement;
         if (!root.classList.contains('intro-pending')) return;
         event.currentTarget.disabled = true;
@@ -83,7 +90,7 @@ const homeTextLinksEnable = homeText?.linksEnable !== false;
             root.classList.remove('intro-opening');
             document.querySelector('#navbar a')?.focus({ preventScroll: true });
         }, duration);
-    });
+    }));
     function setRandomSubtitle() {
         const subtitleElement = document.getElementById('banner-subtitle');
         if (!subtitleElement) return;

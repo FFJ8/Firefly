@@ -347,6 +347,7 @@ html.is-page-transitioning .banner-home-text-overlay {
 /* 首页横幅标题下方的链接图标行（半透明圆按钮） */
 .banner-links {
     animation: banner-fadeInUp 0.3s ease-out 0.5s both;
+    position: relative;
 }
 
 .banner-link {
@@ -388,6 +389,7 @@ html.is-page-transitioning .banner-home-text-overlay {
 
 /* First visit: reuse the existing wallpaper and banner text as a full-screen entrance. */
 .banner-enter-button { display: none; cursor: pointer; }
+.intro-callout { display: none; }
 html.intro-pending, html.intro-pending body { overflow: hidden !important; }
 html.intro-pending body.is-home #wallpaper-wrapper {
     position: fixed !important;
@@ -409,6 +411,50 @@ html.intro-pending body.is-home #scroll-down-indicator,
 html.intro-pending body.is-home #bg-player { display: none !important; }
 html.intro-pending body.is-home .banner-links .banner-link:not(.banner-enter-button) { display: none !important; }
 html.intro-pending body.is-home .banner-enter-button { display: inline-flex !important; }
+html.intro-pending body.is-home .banner-links { margin-top: 5rem !important; }
+html.intro-pending body.is-home .intro-callout {
+    display: block;
+    position: absolute;
+    right: calc(50% + 22px);
+    bottom: -2px;
+    width: min(210px, calc(50vw - 20px));
+    height: 132px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #fff;
+    cursor: pointer;
+    text-align: left;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .55));
+}
+.intro-callout span {
+    position: absolute;
+    top: 0;
+    left: 0;
+    white-space: nowrap;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+.intro-callout svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    fill: none;
+}
+.intro-callout-line { stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.intro-callout:hover span, .intro-callout:focus-visible span { text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 640px) {
+    html.intro-pending body.is-home .intro-callout {
+        right: calc(50% + 9px);
+        width: min(200px, calc(50vw - 28px));
+    }
+    .intro-callout span { top: 26px; font-size: .88rem; }
+    .intro-callout svg { transform: translate(35px, 18px) scale(.8); transform-origin: top left; }
+    .intro-callout-line { stroke-width: 3; }
+}
 
 html.intro-opening, html.intro-opening body { overflow: hidden !important; }
 html.intro-opening body.is-home #wallpaper-wrapper {
