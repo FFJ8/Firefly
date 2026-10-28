@@ -430,7 +430,7 @@ html.intro-pending body.is-home .intro-callout {
 .intro-callout span {
     position: absolute;
     top: 82px;
-    left: 0;
+    left: -20px;
     white-space: nowrap;
     font-size: 1.25rem;
     font-weight: 700;
@@ -447,7 +447,7 @@ html.intro-pending body.is-home .intro-callout {
 .intro-callout-line { stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .intro-callout:hover span, .intro-callout:focus-visible span { text-decoration: underline; text-underline-offset: 4px; }
 @media (max-width: 640px) {
-    .intro-callout span { font-size: 1.05rem; }
+    .intro-callout span { left: -8px; font-size: 1.05rem; }
     .intro-callout-line { stroke-width: 3; }
 }
 
