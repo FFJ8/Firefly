@@ -142,11 +142,6 @@ const {
             </main>
 
                 {/* 移动端底部组件：<768px 时 #main-grid 是 display:block，必须排在页脚之前 */}
-                {sidebarLayoutConfig.mobileBottomComponents && sidebarLayoutConfig.mobileBottomComponents.length > 0 && (
-                    <div id="mobile-bottom-sidebar" class="block md:hidden mt-4">
-                        <SideBar side="bottom" headings={headings} encrypted={encrypted}></SideBar>
-                    </div>
-                )}
             </div>
 
             <SidebarColumn
@@ -176,6 +171,51 @@ const {
 
 <!-- 移动端导航抽屉：渲染为 <body> 直系子元素，脱离导航栏的 transform 包含块才能铺满视口 -->
 <NavMenuPanel links={resolveNavMenuLinks()} />
+
+<div id="mobile-sidebar-backdrop" aria-hidden="true"></div>
+<aside id="mobile-sidebar-drawer" aria-label="网站侧栏" aria-hidden="true">
+    <div class="mobile-sidebar-content">
+        <SideBar side="left" headings={headings} encrypted={encrypted} />
+        <SideBar side="right" headings={headings} encrypted={encrypted} />
+    </div>
+</aside>
+<style is:global>
+@media (max-width: 767px) {
+  #mobile-sidebar-backdrop { position: fixed; inset: 0; z-index: 89; background: rgba(0,0,0,.42); opacity: 0; visibility: hidden; transition: opacity .25s, visibility .25s; }
+  #mobile-sidebar-drawer { position: fixed; inset: 0 auto 0 0; z-index: 90; width: min(82vw, 360px); background: var(--page-bg, #fff); overflow-y: auto; overscroll-behavior: contain; transform: translateX(-105%); transition: transform .28s ease; box-shadow: 8px 0 28px rgba(0,0,0,.16); }
+  #mobile-sidebar-drawer .mobile-sidebar-content { display: flex; flex-direction: column; gap: 1rem; padding: max(1rem, env(safe-area-inset-top)) 1rem 2rem; }
+  html.mobile-sidebar-open #mobile-sidebar-backdrop { opacity: 1; visibility: visible; }
+  html.mobile-sidebar-open #mobile-sidebar-drawer { transform: translateX(0); }
+  html.mobile-sidebar-open body { overflow: hidden; }
+}
+@media (min-width: 768px) { #mobile-sidebar-drawer, #mobile-sidebar-backdrop { display: none; } }
+</style>
+<script is:inline>
+(() => {
+  if (window.__mobileSidebarGesture) return;
+  window.__mobileSidebarGesture = true;
+  let startX = 0, startY = 0, tracking = false;
+  const drawer = () => document.getElementById('mobile-sidebar-drawer');
+  const close = () => { document.documentElement.classList.remove('mobile-sidebar-open'); drawer()?.setAttribute('aria-hidden', 'true'); };
+  const open = () => { document.documentElement.classList.add('mobile-sidebar-open'); drawer()?.setAttribute('aria-hidden', 'false'); };
+  document.addEventListener('touchstart', e => {
+    if (innerWidth >= 768 || e.touches.length !== 1 || document.documentElement.classList.contains('intro-pending')) return;
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    tracking = true;
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (!tracking || !e.changedTouches.length) return;
+    tracking = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) < 65 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
+    if (dx > 0) open(); else close();
+  }, { passive: true });
+  document.addEventListener('click', e => { if (e.target?.id === 'mobile-sidebar-backdrop' || e.target?.closest?.('#mobile-sidebar-drawer a')) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  window.addEventListener('resize', () => { if (innerWidth >= 768) close(); });
+})();
+</script>
 
 <!--
     触屏设备上让代码块的复制按钮默认隐藏，点一下代码块才显形。
