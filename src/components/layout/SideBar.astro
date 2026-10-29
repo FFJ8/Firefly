@@ -24,6 +24,7 @@ interface Props {
 	headings?: MarkdownHeading[];
 	encrypted?: boolean;
 	side?: "left" | "right" | "bottom";
+	mobileChronicle?: boolean;
 }
 
 // 侧边栏位置常量
@@ -164,9 +165,30 @@ const bottomComponents = isMobileBottom ? filteredComponents : [];
 const hasInitiallyVisibleTopComponents = topComponents.some(
 	isComponentInitiallyVisible,
 );
+const chronicleGroups = [
+	{ type: "dynamic", label: "最新" },
+	{ type: "stats", label: "统计" },
+	{ type: "siteInfo", label: "信息" },
+	{ type: "calendar", label: "时空" },
+] as const;
 ---
 
-{
+{Astro.props.mobileChronicle ? (
+	<details class="mobile-chronicle">
+		<summary>站点纪事<span aria-hidden="true">›</span></summary>
+		<div class="mobile-chronicle-groups">
+			{chronicleGroups.map(({ type, label }, index) => {
+				const config = filteredComponents.find((item) => item.type === type);
+				if (!config) return null;
+				const Component = componentMap[type];
+				return <details class="mobile-chronicle-group">
+					<summary>{label}<span aria-hidden="true">›</span></summary>
+					<div class="mobile-chronicle-widget"><Component {...getComponentProps(config, index) as any} /></div>
+				</details>;
+			})}
+		</div>
+	</details>
+) : (
 	(topComponents.length > 0 || stickyComponents.length > 0 || bottomComponents.length > 0) && (
 		<div id={`${side}-sidebar`} class:list={[className, "flex flex-col w-full pt-0"]}>
 			{/* Mobile bottom components - 直接渲染所有组件，不分组 */}
@@ -223,4 +245,4 @@ const hasInitiallyVisibleTopComponents = topComponents.some(
 			)}
 		</div>
 	)
-}
+)}

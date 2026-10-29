@@ -176,7 +176,7 @@ const {
 <aside id="mobile-sidebar-drawer" aria-label="网站侧栏" aria-hidden="true">
     <div class="mobile-sidebar-content">
         <SideBar side="left" headings={headings} encrypted={encrypted} />
-        <SideBar side="right" headings={headings} encrypted={encrypted} />
+        <SideBar side="right" mobileChronicle headings={headings} encrypted={encrypted} />
     </div>
 </aside>
 <style is:global>
@@ -184,6 +184,14 @@ const {
   #mobile-sidebar-backdrop { position: fixed; inset: 0; z-index: 89; background: rgba(0,0,0,.42); opacity: 0; visibility: hidden; transition: opacity .25s, visibility .25s; }
   #mobile-sidebar-drawer { position: fixed; inset: 0 auto 0 0; z-index: 90; width: min(82vw, 360px); background: var(--page-bg, #fff); overflow-y: auto; overscroll-behavior: contain; transform: translateX(-105%); transition: transform .28s ease; box-shadow: 8px 0 28px rgba(0,0,0,.16); }
   #mobile-sidebar-drawer .mobile-sidebar-content { display: flex; flex-direction: column; gap: 1rem; padding: max(1rem, env(safe-area-inset-top)) 1rem 2rem; }
+  .mobile-chronicle, .mobile-chronicle-group { border-radius: 12px; background: var(--card-bg, rgba(255,255,255,.75)); overflow: hidden; }
+  .mobile-chronicle > summary, .mobile-chronicle-group > summary { display: flex; justify-content: space-between; align-items: center; min-height: 48px; padding: .75rem 1rem; color: var(--deep-text); font-weight: 700; cursor: pointer; list-style: none; }
+  .mobile-chronicle summary::-webkit-details-marker { display: none; }
+  .mobile-chronicle summary span { color: var(--primary); font-size: 1.5rem; line-height: 1; transition: transform .2s; }
+  .mobile-chronicle[open] > summary span, .mobile-chronicle-group[open] > summary span { transform: rotate(90deg); }
+  .mobile-chronicle-groups { display: grid; gap: .5rem; padding: 0 .5rem .5rem; }
+  .mobile-chronicle-group { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+  .mobile-chronicle-widget { padding: .25rem .5rem .75rem; }
   html.mobile-sidebar-open #mobile-sidebar-backdrop { opacity: 1; visibility: visible; }
   html.mobile-sidebar-open #mobile-sidebar-drawer { transform: translateX(0); }
   html.mobile-sidebar-open body { overflow: hidden; }
