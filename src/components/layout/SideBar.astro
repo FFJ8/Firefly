@@ -180,6 +180,10 @@ const chronicleGroups = [
 			{chronicleGroups.map(({ type, label }, index) => {
 				const config = filteredComponents.find((item) => item.type === type);
 				if (!config) return null;
+				if (type === "calendar") return <details class="mobile-chronicle-group">
+					<summary>{label}<span aria-hidden="true">›</span></summary>
+					<div class="mobile-chronicle-widget" id="mobile-calendar-mount"></div>
+				</details>;
 				const Component = componentMap[type];
 				return <details class="mobile-chronicle-group">
 					<summary>{label}<span aria-hidden="true">›</span></summary>

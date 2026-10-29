@@ -222,6 +222,17 @@ const {
   document.addEventListener('click', e => { if (e.target?.id === 'mobile-sidebar-backdrop' || e.target?.closest?.('#mobile-sidebar-drawer a')) close(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
   window.addEventListener('resize', () => { if (innerWidth >= 768) close(); });
+  const placeCalendar = () => {
+    const calendar = document.getElementById('calendar-widget');
+    const mount = document.getElementById('mobile-calendar-mount');
+    const desktop = document.getElementById('right-sidebar-sticky');
+    if (!calendar || !mount || !desktop) return;
+    const destination = innerWidth < 768 ? mount : desktop;
+    if (calendar.parentElement !== destination) destination.appendChild(calendar);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', placeCalendar, { once: true });
+  else placeCalendar();
+  window.addEventListener('resize', placeCalendar);
 })();
 </script>
 
